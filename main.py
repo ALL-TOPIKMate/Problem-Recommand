@@ -178,45 +178,13 @@ def set_labels():
 
     return pd.concat(result_list, ignore_index=True)
 
+@app.get("/hello")
+def hello_test():
+
+    return 'hello'
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-
-    read_document()
-
-    # df = set_labels() # 라벨이 설정된 상태의 데이터프레임
-    # print(f'라벨 설정한 상태 ::: {df}')
-
-    # # USER_ID, PRB_ID, LABEL 컬러만 추출하여 새로운 데이터프레임 생성
-    # data = df[['USER_ID', 'PRB_ID', 'label']]
-    # print(f'필요한 컬럼만 추출한 상태 ::: {data}')
-
-    # train_data(data)
-
-    # 비슷한 문제 찾기
-    # favorite_artist = 'LV2PQ0052050'
-    # artist_id = artist_to_idx[favorite_artist]
-    # similar_artist = als_model.similar_items(artist_id, N=3)
-    # print('similar_artist ::: ', similar_artist)
-    #
-    # idx_to_artist = {v: k for k, v in artist_to_idx.items()}
-    # [idx_to_artist[i[0]] for i in similar_artist]
-    #
-    # user = user_to_idx['eg93QctMN9ScQ7aJo040afqcor12']
-    # # recommend에서는 user*item CSR Matrix를 받습니다.
-    # artist_recommended = als_model.recommend(user, csr_data, N=3, filter_already_liked_items=True)
-    # print('artist_recommended ::: ', artist_recommended)
-
-    # index to artist
-    # print(*[idx_to_artist[i[0]] for i in artist_recommended])
-
-    # # 추천 기여도 확인
-    # rihanna = artist_to_idx['LV2PQ0052003']
-    # explain = als_model.explain(user, csr_data, itemid=rihanna)
-    #
-    # [(idx_to_artist[i[0]], i[1]) for i in explain[1]]
-
-    # https://ceuity.tistory.com/31
-    # https://kmhana.tistory.com/31
 
     # 스케줄링 테스트 - sched 라이브러리
 
