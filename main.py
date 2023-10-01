@@ -178,10 +178,10 @@ def set_labels():
 
     return pd.concat(result_list, ignore_index=True)
 
-@app.get("/hello")
-def hello_test():
+@app.get("/")
+def home():
 
-    return 'hello'
+    return 'Hello! This is TOPIK Mate recommendation server!'
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
