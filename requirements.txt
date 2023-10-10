@@ -9,7 +9,6 @@ certifi==2023.7.22
 charset-normalizer==3.2.0
 click==8.1.7
 codespell==2.2.5
-command-not-found==0.3
 cpplint==1.6.1
 cryptography==3.4.8
 Cython>=0.24.0
