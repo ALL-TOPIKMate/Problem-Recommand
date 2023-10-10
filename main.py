@@ -1,4 +1,6 @@
 # This is a sample Python script.
+import os
+
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -7,11 +9,30 @@ import logging
 import pandas as pd
 import json
 
+from dotenv import load_dotenv
+
+load_dotenv() # 환경 변수 로드
+
 # Firebase 클라이언트 생성
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-cred = credentials.Certificate("./serviceAccountKey.json")
+my_credential = {
+  "type": "service_account",
+  "project_id": "topik-mate",
+  "private_key_id": os.getenv('PRIVATE_KEY_ID'),
+  "private_key": os.getenv('PRIVATE_KEY').replace(r'\n', '\n'),
+  "client_email": os.getenv('CLIENT_EMAIL'),
+  "client_id": os.getenv('CLIENT_ID'),
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": os.getenv('AUTH_PROVIDER_X509_CERT_URL'),
+  "client_x509_cert_url": os.getenv('CLIENT_X509_CERT_URL'),
+  "universe_domain": "googleapis.com"
+}
+
+# cred = credentials.Certificate("./serviceAccountKey.json")
+cred = credentials.Certificate(my_credential)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
