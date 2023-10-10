@@ -40,9 +40,9 @@ def hello_every_minute():
     logger.info(f'hello now is {current_time}')
 
 
-
 scheduler = BackgroundScheduler(timezone='Asia/Seoul')
 scheduler.add_job(hello_every_minute, 'cron', second='0')
+
 @app.on_event('startup')
 async def init_app():
     # 스케줄링 테스트 - apscheduler 라이브러리
@@ -76,7 +76,7 @@ async def read_document():
 
 
 ###############################################
-################# 전역 변수 ####################
+########### 전역 변수 설정. app에 등록 ############
 
 app.user_to_idx = {}
 app.idx_to_user = {}
@@ -157,7 +157,21 @@ async def recs_for_all():
     Firebase 저장 로직.
     각 유저의 rec 컬렉션을 업데이트.
     '''
-    
+
+    for user_id in recs.keys():
+
+        # 하나만 테스트
+        if user_id == 'WLdH1AfmPMaRsRLJZMdlR8gPJNm2':
+            rec_collection = db.collection('users').document(user_id).collection('recommend')
+
+            for question in recs[user_id]:
+
+                prb_id = question['PRB_ID']
+                rec_collection.document(prb_id).set(question)
+
+            # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
+            rec_collection.document('Recommend').update({'userCorrect': 0, 'userIndex': 10})
+
     return JSONResponse(content=jsonable_encoder(recs))
 
 # 재학습 recalculate.
@@ -178,6 +192,27 @@ def recalculate_for_new_user(user_id):
 def recalculate_for_new_question():
 
     pass
+
+@app.post('/test')
+async def test():
+
+    from domain.model import set_labels, best_model
+
+    # 데이터 가져오기
+    df = await read_document()  # Firebase history 컬렉션에서 풀이 기록 읽어오기
+    df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
+
+    print(f'df ::: {df}')
+    best_model(df)
+
+
+    # print('app.csr_data_transpose ::: ', app.csr_data_transpose)
+    # print('type(csr_data_transpose) ::: ', type(app.csr_data_transpose))
+
+    # app.idx_to_user = {v: k for k, v in app.user_to_idx.items()}
+    # app.idx_to_quest = {v: k for k, v in app.quest_to_idx.items()}
+
+    return {'message': '테스트 모델 학습 완료!'}
 
 # @app.get("/insert-test")
 # async def create_document():

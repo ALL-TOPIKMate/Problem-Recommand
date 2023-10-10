@@ -12,6 +12,7 @@ codespell==2.2.5
 command-not-found==0.3
 cpplint==1.6.1
 cryptography==3.4.8
+Cython>=0.24.0
 dbus-python==1.2.18
 distro==1.7.0
 distro-info===1.1build1
@@ -37,7 +38,7 @@ h5py==3.9.0
 httplib2==0.20.2
 httptools==0.6.0
 idna==3.4
-implicit==0.7.1
+implicit==0.7.2
 importlib-metadata==4.6.4
 iniconfig==2.0.0
 isort==5.10.1
@@ -51,7 +52,7 @@ more-itertools==8.10.0
 msgpack==1.0.6
 n2==0.1.7
 netifaces==0.11.0
-numpy==1.24.4
+numpy>=1.17.0
 oauthlib==3.2.0
 packaging==23.1
 pandas==2.1.1
@@ -79,14 +80,14 @@ pytz==2023.3.post1
 PyYAML==5.4.1
 requests==2.31.0
 rsa==4.9
-scipy==1.10.1
+scipy>=0.16.0
 SecretStorage==3.3.1
 six==1.16.0
 sniffio==1.3.0
 starlette==0.27.0
 systemd-python==234
 tomli==2.0.1
-tqdm==4.66.1
+tqdm>=4.27.0
 typing_extensions==4.8.0
 tzdata==2023.3
 tzlocal==5.0.1
@@ -101,3 +102,4 @@ wadllib==1.3.6
 watchfiles==0.20.0
 websockets==11.0.3
 zipp==1.0.0
+threadpoolctl

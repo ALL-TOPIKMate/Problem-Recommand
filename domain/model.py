@@ -169,8 +169,11 @@ def learn_model(df):
     als_model.fit(csr_data_transpose)
     als_model.save('./train/als-model.npz')
 
-    # logger.info('========= 모델 훈련 끝 =========')
-    #
+    print(f'als_model.alpha ======== > {als_model.alpha}')
+    print(f'als_model.iterations ======= > {als_model.iterations}')
+    print(f'als_model.regularization ======= > {als_model.regularization}')
+    print(f'als_model.factors ====== > {als_model.factors}')
+
     # # 비슷한 문제 찾기
     # favorite_artist = 'LV1PQ0041015'
     # artist_id = quest_to_idx[favorite_artist]
