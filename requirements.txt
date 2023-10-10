@@ -69,7 +69,6 @@ pyflakes==3.0.1
 PyJWT==2.8.0
 pyparsing==2.4.7
 pytest==7.2.2
-python-apt==2.4.0+ubuntu1
 python-dateutil==2.8.2
 python-dotenv==1.0.0
 pytz==2023.3.post1
@@ -87,7 +86,6 @@ tqdm>=4.27.0
 typing_extensions==4.8.0
 tzdata==2023.3
 tzlocal==5.0.1
-ubuntu-advantage-tools==8001
 ufw==0.36.1
 unattended-upgrades==0.1
 uritemplate==4.1.1
