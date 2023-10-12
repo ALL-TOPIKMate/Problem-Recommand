@@ -154,7 +154,7 @@ async def recs_for_all():
     userids = np.fromiter(app.idx_to_user.keys(), dtype=int)
 
     # !recommend_all은 deprecated 됨. 대신 recommend()에서 userids를 np array로 넘겨서 사용하면 됨
-    ids, scores = als_model.recommend(userids, app.csr_data_transpose[userids], 10)
+    ids, scores = als_model.recommend(userids, app.csr_data_transpose[userids], 10, filter_already_liked_items=True)
     recs = {}
 
     for i in range(len(ids)):
