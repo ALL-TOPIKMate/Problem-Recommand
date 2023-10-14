@@ -169,6 +169,11 @@ def learn_model(df):
 
     # 모델 훈련
     als_model.fit(csr_data_transpose)
+
+    # 모델 저장
+    current_path = os.getcwd()
+    if not os.path.exists(f'{current_path}/train'):
+        os.mkdir(f'{current_path}/train')
     als_model.save('./train/als-model.npz')
 
     print(f'als_model.alpha ======== > {als_model.alpha}')

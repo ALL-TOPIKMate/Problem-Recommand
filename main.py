@@ -32,7 +32,7 @@ file_handler.setFormatter(formatter)
 
 logger = logging.getLogger('main')
 logger.addHandler(file_handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # Firebase 클라이언트 생성
 import firebase_admin
