@@ -4,6 +4,9 @@ import os
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from pytz import timezone, utc # 시간대 설정
+
+KST = timezone('Asia/Seoul')
 
 import logging
 import pandas as pd
@@ -12,6 +15,24 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv() # 환경 변수 로드
+
+# 로깅 시간대 설정을 위한 컨버터 함수
+def timetz(*args):
+    return datetime.now(KST).timetuple()
+
+# 로그 포맷 설정
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# 컨버터 설정
+logging.Formatter.converter = timetz
+
+# 로그 출력 스트림 설정
+file_handler = logging.FileHandler(filename=f'log_debug_{datetime.now(KST).strftime("%Y-%m-%d")}.log')
+file_handler.setFormatter(formatter)
+
+logger = logging.getLogger('main')
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
 
 # Firebase 클라이언트 생성
 import firebase_admin
@@ -36,25 +57,13 @@ cred = credentials.Certificate(my_credential)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-logger = logging.getLogger('main')
-logger.setLevel(logging.INFO)
-
-# 로그 포맷
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# 로그 출력 스트림 설정
-file_handler = logging.FileHandler(filename=f'log_debug_{datetime.now().strftime("%Y-%m-%d")}.log')
-file_handler.setFormatter(formatter)
-
-logger.addHandler(file_handler)
-
 # FastAPI app 생성
 app = FastAPI()
 
 # 잡 스케줄링
 
 def hello_every_minute():
-    now = datetime.now()
+    now = datetime.now(KST) # 시간대를 설정하고 현재 시각 불러오기
     current_time = now.strftime('%Y년 %m월 %d일 %H:%M:%S')
 
     print(f'hello now is {current_time}')
