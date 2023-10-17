@@ -3,6 +3,7 @@ import os
 
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime
 from pytz import timezone, utc # 시간대 설정
 
@@ -69,9 +70,20 @@ def hello_every_minute():
     print(f'hello now is {current_time}')
     logger.info(f'hello now is {current_time}')
 
+async def daily_recs():
+    now = datetime.now(KST)  # 시간대를 설정하고 현재 시각 불러오기
+    current_time = now.strftime('%Y년 %m월 %d일 %H:%M:%S')
 
-scheduler = BackgroundScheduler(timezone='Asia/Seoul')
+    print(f'Daily Recommendation ========== {current_time}')
+    logger.info(f'Daily Recommendation ========== {current_time}')
+
+    await train_model()
+    await recs_for_all()
+
+# scheduler = BackgroundScheduler(timezone='Asia/Seoul')
+scheduler = AsyncIOScheduler(timezone='Asia/Seoul')
 scheduler.add_job(hello_every_minute, 'cron', second='0')
+# scheduler.add_job(daily_recs, 'cron', minute='0')
 
 @app.on_event('startup')
 async def init_app():
@@ -101,12 +113,11 @@ async def read_document():
     # logger.info(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(history_dict)}')
 
     return pd.DataFrame(history_dict)
-    # res = df.to_json(orient='records')
-    # return json.loads(res)
-
 
 ###############################################
 ########### 전역 변수 설정. app에 등록 ############
+
+app.df = pd.DataFrame() # 매일 자정 수집되는 전체 문제 풀이 이력
 
 app.user_to_idx = {}
 app.idx_to_user = {}
@@ -132,10 +143,10 @@ async def train_model():
 
     # 데이터 가져오기
     df = await read_document()  # Firebase history 컬렉션에서 풀이 기록 읽어오기
-    df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
+    app.df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
 
-    print(f'df ::: {df}')
-    app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(df)
+    print(f'app.df ::: {app.df}')
+    app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(app.df)
 
 
     print('app.csr_data_transpose ::: ', app.csr_data_transpose)
@@ -204,16 +215,25 @@ async def recs_for_all():
 
     return JSONResponse(content=jsonable_encoder(recs))
 
-# 재학습 recalculate.
-# 새롭게 회원가입한 회원에 대하여 모델 재학습 후, 추천 문제 반환
+# 부분 학습.
+# 새롭게 회원가입한 회원에 대하여 모델 부분 학습 후, 추천 문제 반환
 @app.post('/model/user/{user_id}')
-def recalculate_for_new_user(user_id):
+async def partial_fit_for_new_user(user_id, user_items):
 
-    # from implicit.als import AlternatingLeastSquares
-    # from implicit.recommender_base import RecommenderBase
-    #
-    # als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
+    from domain.model import set_labels_for_one, learn_model
+
+    from implicit.als import AlternatingLeastSquares
+    from implicit.recommender_base import RecommenderBase
+
+    als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
+
+    user_df = await set_labels_for_one(app.df, user_id, user_items)
+
     # als_model.recalculate_user(user_id)
+
+    # data.label, (data.USER_ID, data.PRB_ID))
+
+    als_model.partial_fit_users(user_id, user_df)
 
     pass
 
