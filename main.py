@@ -174,8 +174,6 @@ app.csr_data_transpose = None
 
 ###############################################
 
-from evaluation.evaluation import leave_k_out_split
-
 @app.get('/')
 async def home():
 
