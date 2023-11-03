@@ -89,7 +89,7 @@ async def daily_recs():
 # scheduler = BackgroundScheduler(timezone='Asia/Seoul')
 scheduler = AsyncIOScheduler(timezone='Asia/Seoul')
 # scheduler.add_job(hello_every_minute, 'cron', second='0')
-scheduler.add_job(daily_recs, 'cron', hour='0')
+scheduler.add_job(daily_recs, 'cron', hour='0', minute='3', second='0')
 
 ##########################################
 ############ 앱 시작/종료 ##################
@@ -337,26 +337,7 @@ async def recs_for_all():
             })
         print()
 
-        # recs[app.idx_to_user[user_idx]] = recs_list
         recs[user_id] = recs_list
-
-    # !recommend_all은 deprecated 됨. 대신 recommend()에서 userids를 np array로 넘겨서 사용하면 됨
-    # ids, scores = als_model.recommend(user_idxs, app.csr_data_transpose[user_idxs], 10, filter_already_liked_items=True, items=)
-    # recs = {}
-    #
-    # for i in range(len(ids)):
-    #
-    #     recs_list = list()
-    #     print(f'{app.idx_to_user[i]} ============= >')
-    #     for j in range(len(ids[i])):
-    #         print(f'PRB_ID: {app.idx_to_quest[j]}, score: {scores[i][j]}', end=', ')
-    #         recs_list.append({
-    #             'PRB_ID': app.idx_to_quest[j],
-    #             'score': float(scores[i][j])
-    #         })
-    #     print()
-    #
-    #     recs[app.idx_to_user[i]] = recs_list
 
     logger.info('Recs ===================> {}', recs)
 
@@ -373,49 +354,46 @@ async def recs_for_all():
         '''
         # 컬렉션 참조
         rec_collection = db.collection('users').document(user_id).collection('recommend')
-
-        # 테스트로 한명의 유저것만 업데이트
-        if user_id == 'WLdH1AfmPMaRsRLJZMdlR8gPJNm2':
             
-            # 컬렉션 내의 모든 문서 가져옵니다.
-            rec_docs = rec_collection.stream()
+        # 컬렉션 내의 모든 문서 가져옵니다.
+        rec_docs = rec_collection.stream()
 
-            # 기존 추천 문제를 삭제합니다.
-            for doc in rec_docs:
-                doc.reference.delete()
+        # 기존 추천 문제를 삭제합니다.
+        for doc in rec_docs:
+            doc.reference.delete()
 
-            # 새로운 오늘의 추천 문제를 저장합니다.
-            for question in recs[user_id]:
+        # 새로운 오늘의 추천 문제를 저장합니다.
+        for question in recs[user_id]:
 
-                prb_id = question['PRB_ID']
+            prb_id = question['PRB_ID']
 
-                '''
-                문제 ID로 문제 데이터 가져오는 로직
-                '''
-                prb_level = prb_id[:3]
-                prb_source1 = prb_id[3:5]
-                prb_source2 = prb_id[5:9]
+            '''
+            문제 ID로 문제 데이터 가져오는 로직
+            '''
+            prb_level = prb_id[:3]
+            prb_source1 = prb_id[3:5]
+            prb_source2 = prb_id[5:9]
 
-                prb_ref = (db.collection('problems')
-                            .document(prb_level)
-                            .collection(prb_source1)
-                            .document(prb_source2)
-                            .collection('PRB_LIST')
-                            .document(prb_id))
+            prb_ref = (db.collection('problems')
+                        .document(prb_level)
+                        .collection(prb_source1)
+                        .document(prb_source2)
+                        .collection('PRB_LIST')
+                        .document(prb_id))
 
-                prb_doc = prb_ref.get()
+            prb_doc = prb_ref.get()
 
-                if not prb_doc.exists:
-                    raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
+            if not prb_doc.exists:
+                raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
 
-                # 문제 데이터를 얻습니다.
-                prb_data = prb_doc.to_dict()
+            # 문제 데이터를 얻습니다.
+            prb_data = prb_doc.to_dict()
 
-                # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
-                rec_collection.document(prb_id).set(prb_data)
+            # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
+            rec_collection.document(prb_id).set(prb_data)
 
-            # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
-            rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 10})
+        # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
+        rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 10})
 
     return JSONResponse(content=jsonable_encoder(recs))
 
@@ -615,73 +593,3 @@ def recalculate_for_new_question():
 
     pass
 
-@app.post('/test')
-async def test():
-
-    from domain.model import set_labels, best_model
-
-    # 데이터 가져오기
-    df = await read_document()  # Firebase history 컬렉션에서 풀이 기록 읽어오기
-    df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
-
-    print(f'df ::: {df}')
-    best_model(df)
-
-
-    # print('app.csr_data_transpose ::: ', app.csr_data_transpose)
-    # print('type(csr_data_transpose) ::: ', type(app.csr_data_transpose))
-
-    # app.idx_to_user = {v: k for k, v in app.user_to_idx.items()}
-    # app.idx_to_quest = {v: k for k, v in app.quest_to_idx.items()}
-
-    return {'message': '테스트 모델 학습 완료!'}
-
-# @app.get("/insert-test")
-# async def create_document():
-#
-#     # doc_ref = db.collection('historys').document('test_id')
-#     # doc_ref.set({
-#     #     u'USER_ID': u'test_id',
-#     #     u'ELAPSED_TIME': 8000,
-#     #     u'PRB_CORRT_ANSW': u'3',
-#     #     u'PRB_ID': u'LV1PQ0000010',
-#     #     u'TAG': u'002',
-#     #     u'PRB_USER_ANSW': 1
-#     # })
-#
-#     return {"message": "end!!"}
-
-# @app.get("/model")
-# def test():
-#
-#     # df = read_document()  # Firebase history 컬렉션에서 풀이 기록 읽어오기
-#     # df = set_labels(df)  # 풀이 시간에 따른 라벨링 수행
-#     #
-#     # learn_model(df)
-#
-#     # create_document()
-#     # doc_ref = db.collection('historys').document('test_id')
-#     # doc_ref.set({
-#     #     u'USER_ID': u'test_id',
-#     #     u'ELAPSED_TIME': 8000,
-#     #     u'PRB_CORRT_ANSW': u'3',
-#     #     u'PRB_ID': u'LV1PQ0000010',
-#     #     u'TAG': u'002',
-#     #     u'PRB_USER_ANSW': 1
-#     # })
-#     #
-#     return 'Successfully created model!'
-#
-
-
-# @app.post("/daily-recs/{user_id}")
-# def daily_recs(user_id):
-#
-#     als_model = load_model()
-#
-#     user = user_to_idx[user_id]
-#     # recommend에서는 user*item CSR Matrix를 받습니다.
-#     print(als_model.recommend_all(user, 3))
-#     print('csr_data_transpose[user] ::: ', csr_data_transpose[user])
-#     artist_recommended = als_model.recommend(user, csr_data_transpose[user], N=3, filter_already_liked_items=True)
-#     print('artist_recommended ::: ', artist_recommended)
