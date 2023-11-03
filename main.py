@@ -169,6 +169,11 @@ app.user_lookup = pd.DataFrame()
 app.quest_lookup = pd.DataFrame()
 
 app.data_sparse = pd.DataFrame()
+app.data_sparse_trans = pd.DataFrame()
+
+app.users = []
+app.questions = []
+app.labels = []
 
 app.user_to_idx = {}
 app.idx_to_user = {}
@@ -228,16 +233,16 @@ async def train_model():
     app.df = df.loc[df.label != 3]
 
     # 7. 전체 사용자, 문제, 라벨 데이터 리스트를 생성합니다.
-    users = list(np.sort(app.df['USER_IDX'].unique()))
-    questions = list(np.sort(app.df['PRB_IDX'].unique()))
-    labels = list(app.df['label'])
+    app.users = list(np.sort(app.df['USER_IDX'].unique()))
+    app.questions = list(np.sort(app.df['PRB_IDX'].unique()))
+    app.labels = list(app.df['label'])
 
     # 사용자-아이템 행렬을 만들기 위한 행, 열 데이터를 얻습니다.
     rows = app.df['USER_IDX'].astype(int)
     cols = app.df['PRB_IDX'].astype(int)
 
     from scipy.sparse import csr_matrix
-    app.data_sparse = csr_matrix((labels, (rows, cols)), shape=(len(users), len(questions)))
+    app.data_sparse = csr_matrix((app.labels, (rows, cols)), shape=(len(app.users), len(app.questions)))
 
     # app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(app.df)
     app.data_sparse_trans = learn_model(app.data_sparse)
@@ -265,25 +270,32 @@ async def recs_for_all():
 
     import numpy as np
 
+    # 저장된 모델을 로드합니다.
     als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
 
     # idx_to_user 딕셔너리 -->> np array로 형변환
-    user_idxs = np.fromiter(app.idx_to_user.keys(), dtype=int)
-    questions = app.quest_to_idx.keys()
+    # user_idxs = np.fromiter(app.idx_to_user.keys(), dtype=int)
+    # questions = app.quest_to_idx.keys()
+    questions = app.quest_lookup.PRB_ID
     lv1_quest_idx = []
     lv2_quest_idx = []
 
+    # 레벨1 문제와 레벨2 문제들을 분리합니다.
     for question in questions:
+
+        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == questions].iloc[0]
+
         if question[:3] == 'LV1':
-            lv1_quest_idx.append(app.quest_to_idx[question])
+            lv1_quest_idx.append(quest_idx)
         else:
-            lv2_quest_idx.append(app.quest_to_idx[question])
+            lv2_quest_idx.append(quest_idx)
 
     recs = {}
 
     # 유저 한 명씩 전체 추천
-    for user_idx in user_idxs:
-        user_id = app.idx_to_user[user_idx]
+    for user_idx in app.users:
+        # user_id = app.idx_to_user[user_idx]
+        user_id = app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(user_idx)].iloc[0] # 사용자 ID
 
         # 유저 탈퇴 여부 확인
         user_ref = db.collection('users').document(user_id)
@@ -293,7 +305,7 @@ async def recs_for_all():
             continue
 
         # 유저 레벨 확인
-        user_level = user_doc.get('my_level')
+        user_level = user_doc.get('my_level') # 사용자 선택 레벨
 
         # 유저 레벨의 문제(아이템) 설정
         items = lv1_quest_idx if user_level == '1' else lv2_quest_idx
@@ -307,20 +319,26 @@ async def recs_for_all():
         #                                   filter_already_liked_items=True,
         #                                   items=items)
         ids, scores = als_model.recommend(user_idx,
-                                          app.csr_data_transpose[user_idx],
+                                          app.data_sparse_trans[user_idx],
                                           filter_already_liked_items=True)
 
 
         recs_list = list()
-        print(f'{app.idx_to_user[user_idx]} ============= >')
+        print(f'{user_id} ============= >')
         for i in range(len(ids)):
-            print(f'PRB_ID: {app.idx_to_quest[ids[i]]}, score: {scores[i]}', end=', ')
+
+            prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])] # 문제 ID
+
+            print(f'PRB_ID: {prb_id}, score: {scores[i]}')
             recs_list.append({
-                'PRB_ID': app.idx_to_quest[ids[i]],
+                # 'PRB_ID': app.idx_to_quest[ids[i]],
+                'PRB_ID': prb_id,
                 'SCORE': float(scores[i])
             })
+        print()
 
-        recs[app.idx_to_user[user_idx]] = recs_list
+        # recs[app.idx_to_user[user_idx]] = recs_list
+        recs[user_id] = recs_list
 
     # !recommend_all은 deprecated 됨. 대신 recommend()에서 userids를 np array로 넘겨서 사용하면 됨
     # ids, scores = als_model.recommend(user_idxs, app.csr_data_transpose[user_idxs], 10, filter_already_liked_items=True, items=)
