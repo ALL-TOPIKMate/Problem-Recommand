@@ -9,6 +9,9 @@ from datetime import datetime
 from google.cloud.firestore_v1 import FieldFilter
 from pytz import timezone, utc # 시간대 설정
 
+import numpy as np
+import pandas as pd
+
 KST = timezone('Asia/Seoul')
 
 import logging
@@ -162,6 +165,11 @@ async def read_temp_document(user_id):
 
 app.df = pd.DataFrame() # 매일 자정 수집되는 전체 문제 풀이 이력
 
+app.user_lookup = pd.DataFrame()
+app.quest_lookup = pd.DataFrame()
+
+app.data_sparse = pd.DataFrame()
+
 app.user_to_idx = {}
 app.idx_to_user = {}
 app.quest_to_idx = {}
@@ -184,22 +192,63 @@ async def train_model():
 
     from domain.model import set_labels, learn_model
 
-    from implicit.als import AlternatingLeastSquares
-    from implicit.recommender_base import RecommenderBase
-
     # 데이터 가져오기
     df = await read_document()  # Firebase history 컬렉션에서 풀이 기록 읽어오기
-    app.df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
 
-    print(f'app.df ::: {app.df}')
-    app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(app.df)
+    # 데이터 전처리
+    # 1. 풀이 시간에 따라 라벨링을 수행합니다.
+    df = await set_labels(df)  # 풀이 시간에 따른 라벨링 수행
+    print(f'데이터 라벨링 완료 ::: {df}')
 
+    # 2. 학습에 필요한 컬럼만 추출합니다.
+    df = df[['USER_ID', 'PRB_ID', 'label']]
 
-    print('app.csr_data_transpose ::: ', app.csr_data_transpose)
-    print('type(csr_data_transpose) ::: ', type(app.csr_data_transpose))
+    # 3. 값이 없는 행은 드롭합니다.
+    df = df.dropna()
 
-    app.idx_to_user = {v: k for k, v in app.user_to_idx.items()}
-    app.idx_to_quest = {v: k for k, v in app.quest_to_idx.items()}
+    # 4. 사용자/문제 ID를 숫자 ID로 변환합니다.
+    df['USER_IDX'] = df['USER_ID'].astype('category').cat.codes
+    df['PRB_IDX'] = df['PRB_ID'].astype('category').cat.codes
+
+    # 5. 숫자 ID로 사용자/문제를 찾을 수 있도록 lookup 데이터를 만듭니다.
+    # 사용자 ID lookup
+    user_lookup = df[['USER_IDX', 'USER_ID']].drop_duplicates()
+    user_lookup['USER_IDX'] = user_lookup.USER_IDX.astype(str)
+    app.user_lookup = user_lookup
+
+    # 문제 ID lookup
+    quest_lookup = df[['PRB_IDX', 'PRB_ID']].drop_duplicates()
+    quest_lookup['PRB_IDX'] = quest_lookup.PRB_IDX.astype(str)
+    app.quest_lookup = quest_lookup
+
+    df = df.drop(['USER_ID', 'PRB_ID'], axis=1)
+    print(f'Numeric ID로 치환 완료 ::: {df}')
+
+    # 6. 3으로 라벨링된 데이터가 (혹시) 있다면 드롭하고 나머지 데이터만 취합니다.
+    app.df = df.loc[df.label != 3]
+
+    # 7. 전체 사용자, 문제, 라벨 데이터 리스트를 생성합니다.
+    users = list(np.sort(app.df['USER_IDX'].unique()))
+    questions = list(np.sort(app.df['PRB_IDX'].unique()))
+    labels = list(app.df['label'])
+
+    # 사용자-아이템 행렬을 만들기 위한 행, 열 데이터를 얻습니다.
+    rows = app.df['USER_IDX'].astype(int)
+    cols = app.df['PRB_IDX'].astype(int)
+
+    from scipy.sparse import csr_matrix
+    app.data_sparse = csr_matrix((labels, (rows, cols)), shape=(len(users), len(questions)))
+
+    # app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(app.df)
+    app.data_sparse_trans = learn_model(app.data_sparse)
+
+    # 사용자 ID 찾기(int -> string)
+    print(f'app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0] ::: {app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0]}')
+    # 사용자 IDX 찾기(string -> int)
+    print(f'app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0] ::: {app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0]}')
+
+    # app.idx_to_user = {v: k for k, v in app.user_to_idx.items()}
+    # app.idx_to_quest = {v: k for k, v in app.quest_to_idx.items()}
 
     # als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
 
