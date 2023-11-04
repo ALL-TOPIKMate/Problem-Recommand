@@ -226,20 +226,21 @@ async def train_model():
     quest_lookup['PRB_IDX'] = quest_lookup.PRB_IDX.astype(str)
     app.quest_lookup = quest_lookup
 
+    app.df = df
     df = df.drop(['USER_ID', 'PRB_ID'], axis=1)
     print(f'Numeric ID로 치환 완료 ::: {df}')
 
-    # 6. 3으로 라벨링된 데이터가 (혹시) 있다면 드롭하고 나머지 데이터만 취합니다.
-    app.df = df.loc[df.label != 3]
+    # 6. 0으로 라벨링된 데이터가 있다면 드롭하고 나머지 데이터만 취합니다.
+    df = df.loc[df.label != 0]
 
     # 7. 전체 사용자, 문제, 라벨 데이터 리스트를 생성합니다.
-    app.users = list(np.sort(app.df['USER_IDX'].unique()))
-    app.questions = list(np.sort(app.df['PRB_IDX'].unique()))
-    app.labels = list(app.df['label'])
+    app.users = list(np.sort(df['USER_IDX'].unique()))
+    app.questions = list(np.sort(df['PRB_IDX'].unique()))
+    app.labels = list(df['label'])
 
     # 사용자-아이템 행렬을 만들기 위한 행, 열 데이터를 얻습니다.
-    rows = app.df['USER_IDX'].astype(int)
-    cols = app.df['PRB_IDX'].astype(int)
+    rows = df['USER_IDX'].astype(int)
+    cols = df['PRB_IDX'].astype(int)
 
     from scipy.sparse import csr_matrix
     app.data_sparse = csr_matrix((app.labels, (rows, cols)), shape=(len(app.users), len(app.questions)))
@@ -400,140 +401,226 @@ async def recs_for_all():
 @app.post('/recs-list/{user_id}')
 async def recs_for_one(user_id):
 
-    from domain.model import set_labels_for_one, learn_model
-
-    # 데이터 가져오기
-    df = await read_temp_document(user_id)  # Firebase leveltest 컬렉션에서 풀이 기록 읽어오기
-    df = await set_labels_for_one(app.df, user_id, df)  # 풀이 시간에 따른 라벨링 수행
-
-    # 유저 선택 레벨 구하기
-    user_ref = db.collection('users').document(user_id)
-    user_doc = user_ref.get()
-    user_level = user_doc.get('my_level')
-
-    # 유저 레벨에 맞는 문제들만 거르기
-    questions = app.quest_to_idx.keys()
-    items = []
-    for question in questions:
-        if question[2] == str(user_level):
-            items.append(app.quest_to_idx[question])
-
-    # 유저 인덱스 구하기
-    user_idx = len(app.user_to_idx) # 기존 마지막 유저 인덱스 + 1
-
     from fastapi.encoders import jsonable_encoder
     from fastapi.responses import JSONResponse
 
+    from domain.model import set_labels_for_one, learn_model
     from implicit.als import AlternatingLeastSquares
     from implicit.recommender_base import RecommenderBase
 
-    import numpy as np
-
     als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
 
-    # CSR sparse matrix로 바꿔주기
-    from scipy.sparse import coo_matrix, csr_matrix
+    # 데이터 가져오기
+    df = await read_temp_document(user_id)  # Firebase leveltest 컬렉션에서 풀이 기록 읽어오기
 
-    # 데이터 인덱싱
-    user_unique = df['USER_ID'].unique()
-    quest_unique = df['PRB_ID'].unique()
+    # 데이터 전처리
+    # 1. 풀이 시간에 따른 라벨링을 수행합니다.
+    df = await set_labels_for_one(app.df, df)
 
-    # 유저, 문제 indexing 하는 코드. idx는 index의 약자
-    user_to_idx = {v: k for k, v in enumerate(user_unique)}
-    quest_to_idx = {v: k for k, v in enumerate(quest_unique)}
-
-    # 인덱싱이 잘 되었는지 확인해 봅니다.
-    # print(user_to_idx['eg93QctMN9ScQ7aJo040afqcor12'])  # 4명의 유저 중 처음 추가된 유저이니 0이 나와야 합니다.
-    # print(quest_to_idx['LV1PQ0041059'])
-
-    # # user_to_idx.get을 통해 user_id 컬럼의 모든 값을 인덱싱한 Series를 구해 봅시다.
-    # # 혹시 정상적으로 인덱싱되지 않은 row가 있다면 인덱스가 NaN이 될 테니 dropna()로 제거합니다.
-    temp_user_data = df['USER_ID'].map(user_to_idx.get).dropna()
-    if len(temp_user_data) == len(df):  # 모든 row가 정상적으로 인덱싱되었다면
-        logger.info('user_id column indexing OK!!')
-        df['USER_ID'] = temp_user_data  # data['user_id']을 인덱싱된 Series로 교체해 줍니다.
-    else:
-        logger.info('user_id column indexing Fail!!')
-
-    # artist_to_idx을 통해 artist 컬럼도 동일한 방식으로 인덱싱해 줍니다.
-    temp_artist_data = df['PRB_ID'].map(quest_to_idx.get).dropna()
-    if len(temp_artist_data) == len(df):
-        logger.info('artist column indexing OK!!')
-        df['PRB_ID'] = temp_artist_data
-    else:
-        logger.info('artist column indexing Fail!!')
-
+    # 2. 학습에 필요한 컬럼만 추출합니다.
     df = df[['USER_ID', 'PRB_ID', 'label']]
-    num_user = df['USER_ID'].nunique()
-    num_quest = df['PRB_ID'].nunique()
 
-    csr_data = csr_matrix((df.label, (df.USER_ID, df.PRB_ID)), shape=(num_user, num_quest))
-    csr_data_transpose = csr_data.T.tocsr()
+    # 3. 값이 없는 행은 드롭합니다.
+    df = df.dropna()
 
-    # 최초 추천 문제 생성 - recalculate_user=True
-    # !recommend_all은 deprecated 됨. 대신 recommend()에서 userids를 np array로 넘겨서 사용하면 됨
-    user_idx = user_to_idx[user_id]
+    # 4. 사용자/문제 ID를 숫자 ID로 변환합니다.
+    df['USER_IDX'] = df['USER_ID'].astype('category').cat.codes
+    df['PRB_IDX'] = df['PRB_ID'].astype('category').cat.codes
+
+    # 5. 숫자 ID로 사용자/문제를 찾을 수 있도록 lookup 데이터를 만듭니다.
+    # 사용자 ID lookup
+    user_lookup = df[['USER_IDX', 'USER_ID']].drop_duplicates()
+    user_lookup['USER_IDX'] = user_lookup.USER_IDX.astype(str)
+
+    # 문제 ID lookup
+    quest_lookup = df[['PRB_IDX', 'PRB_ID']].drop_duplicates()
+    quest_lookup['PRB_IDX'] = quest_lookup.PRB_IDX.astype(str)
+
+    df = df.drop(['USER_ID', 'PRB_ID'], axis=1)
+    print(f'Numeric ID로 치환 완료 ::: {df}')
+
+    # 6. 0으로 라벨링된 데이터가 있다면 드롭하고 나머지 데이터만 취합니다.
+    df = df.loc[df.label != 0]
+
+    # 7. 전체 사용자, 문제, 라벨 데이터 리스트를 생성합니다.
+    users = list(np.sort(df['USER_IDX'].unique()))
+    questions = list(np.sort(df['PRB_IDX'].unique()))
+    labels = list(df['label'])
+
+    # 사용자-아이템 행렬을 만들기 위한 행, 열 데이터를 얻습니다.
+    rows = df['USER_IDX'].astype(int)
+    cols = df['PRB_IDX'].astype(int)
+
+    from scipy.sparse import csr_matrix
+    data_sparse = csr_matrix((labels, (rows, cols)), shape=(len(users), len(questions)))
+    # 전치해야 하나??
+    # data_sparse_trans = data_sparse.T.tocsr()
+
+    # ids, scores = als_model.recommend(userid=0,
+    #                                   user_items=app.data_sparse_trans[0],
+    #                                   N=10,
+    #                                   recalculate_user=True,
+    #                                   filter_already_liked_items=True)
+
+    # 개별 추천
+    ids, scores = als_model.recommend(userid=0,
+                                      user_items=data_sparse[0],
+                                      N=10,
+                                      recalculate_user=True,
+                                      filter_already_liked_items=True)
+
+    recs = {}
+    recs_list = list()
+    print(f'{user_id} ============= >')
+    for i in range(len(ids)):
+        prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])]  # 문제 ID
+
+        print(f'PRB_ID: {prb_id}, score: {scores[i]}')
+        recs_list.append({
+            # 'PRB_ID': app.idx_to_quest[ids[i]],
+            'PRB_ID': prb_id,
+            'SCORE': float(scores[i])
+        })
+    print()
+
+    recs[user_id] = recs_list
+
+    # '''
+    # 새로운 문제에 대한 처리
+    # '''
+    # quest_idx =
+    #
+    # '''
+    # 새로운 사용자에 대한 처리
+    # '''
+    # user_model = AlternatingLeastSquares(use_gpu=False)
+
+    '''
+    이 밑으로 주석처리
+    '''
+    # # 유저 선택 레벨 구하기
+    # user_ref = db.collection('users').document(user_id)
+    # user_doc = user_ref.get()
+    # user_level = user_doc.get('my_level')
+    #
+    # # 유저 레벨에 맞는 문제들만 거르기
+    # questions = app.quest_to_idx.keys()
+    # items = []
+    # for question in questions:
+    #     if question[2] == str(user_level):
+    #         items.append(app.quest_to_idx[question])
+    #
+    # # 유저 인덱스 구하기
+    # user_idx = len(app.user_to_idx) # 기존 마지막 유저 인덱스 + 1
+    #
+    # from fastapi.encoders import jsonable_encoder
+    # from fastapi.responses import JSONResponse
+    #
+    # import numpy as np
+    #
+    # # CSR sparse matrix로 바꿔주기
+    # from scipy.sparse import coo_matrix, csr_matrix
+    #
+    # # 데이터 인덱싱
+    # user_unique = df['USER_ID'].unique()
+    # quest_unique = df['PRB_ID'].unique()
+    #
+    # # 유저, 문제 indexing 하는 코드. idx는 index의 약자
+    # user_to_idx = {v: k for k, v in enumerate(user_unique)}
+    # quest_to_idx = {v: k for k, v in enumerate(quest_unique)}
+    #
+    # # 인덱싱이 잘 되었는지 확인해 봅니다.
+    # # print(user_to_idx['eg93QctMN9ScQ7aJo040afqcor12'])  # 4명의 유저 중 처음 추가된 유저이니 0이 나와야 합니다.
+    # # print(quest_to_idx['LV1PQ0041059'])
+    #
+    # # # user_to_idx.get을 통해 user_id 컬럼의 모든 값을 인덱싱한 Series를 구해 봅시다.
+    # # # 혹시 정상적으로 인덱싱되지 않은 row가 있다면 인덱스가 NaN이 될 테니 dropna()로 제거합니다.
+    # temp_user_data = df['USER_ID'].map(user_to_idx.get).dropna()
+    # if len(temp_user_data) == len(df):  # 모든 row가 정상적으로 인덱싱되었다면
+    #     logger.info('user_id column indexing OK!!')
+    #     df['USER_ID'] = temp_user_data  # data['user_id']을 인덱싱된 Series로 교체해 줍니다.
+    # else:
+    #     logger.info('user_id column indexing Fail!!')
+    #
+    # # artist_to_idx을 통해 artist 컬럼도 동일한 방식으로 인덱싱해 줍니다.
+    # temp_artist_data = df['PRB_ID'].map(quest_to_idx.get).dropna()
+    # if len(temp_artist_data) == len(df):
+    #     logger.info('artist column indexing OK!!')
+    #     df['PRB_ID'] = temp_artist_data
+    # else:
+    #     logger.info('artist column indexing Fail!!')
+    #
+    # df = df[['USER_ID', 'PRB_ID', 'label']]
+    # num_user = df['USER_ID'].nunique()
+    # num_quest = df['PRB_ID'].nunique()
+    #
+    # csr_data = csr_matrix((df.label, (df.USER_ID, df.PRB_ID)), shape=(num_user, num_quest))
+    # csr_data_transpose = csr_data.T.tocsr()
+    #
+    # # 최초 추천 문제 생성 - recalculate_user=True
+    # # !recommend_all은 deprecated 됨. 대신 recommend()에서 userids를 np array로 넘겨서 사용하면 됨
+    # user_idx = user_to_idx[user_id]
+    # # ids, scores = als_model.recommend(userid=user_idx,
+    # #                                   user_items=csr_data_transpose[user_idx],
+    # #                                   N=10,
+    # #                                   filter_already_liked_items=True,
+    # #                                   recalculate_user=True,
+    # #                                   items=items)
     # ids, scores = als_model.recommend(userid=user_idx,
     #                                   user_items=csr_data_transpose[user_idx],
     #                                   N=10,
     #                                   filter_already_liked_items=True,
-    #                                   recalculate_user=True,
-    #                                   items=items)
-    ids, scores = als_model.recommend(userid=user_idx,
-                                      user_items=csr_data_transpose[user_idx],
-                                      N=10,
-                                      filter_already_liked_items=True,
-                                      recalculate_user=True)
-
-    recs = {}
-    recs_list = []
-
-    for i, quest_idx in enumerate(ids):
-
-        print(f'PRB_ID: {app.idx_to_quest[quest_idx]}, score: {scores[i]}')
-        recs_list.append({
-            'PRB_ID': app.idx_to_quest[quest_idx],
-            'score': float(scores[i])
-        })
-
-    recs[user_id] = recs_list
-
-    logger.info('Recs ===================> {}', recs)
-
-    # Firebase에 저장
-
-    rec_collection = db.collection('users').document(user_id).collection('recommend')
-
-    for question in recs[user_id]:
-        prb_id = question['PRB_ID']
-
-        '''
-        문제 ID로 문제 데이터 가져오는 로직
-        '''
-        prb_level = prb_id[:3]
-        prb_source1 = prb_id[3:5]
-        prb_source2 = prb_id[5:9]
-
-        prb_ref = (db.collection('problems')
-                   .document(prb_level)
-                   .collection(prb_source1)
-                   .document(prb_source2)
-                   .collection('PRB_LIST')
-                   .document(prb_id))
-
-        prb_doc = prb_ref.get()
-
-        if not prb_doc.exists:
-            raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
-
-        # 문제 데이터를 얻습니다.
-        prb_data = prb_doc.to_dict()
-
-        # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
-        rec_collection.document(prb_id).set(prb_data)
-
-    # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
-    rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 10})
+    #                                   recalculate_user=True)
+    #
+    # recs = {}
+    # recs_list = []
+    #
+    # for i, quest_idx in enumerate(ids):
+    #
+    #     print(f'PRB_ID: {app.idx_to_quest[quest_idx]}, score: {scores[i]}')
+    #     recs_list.append({
+    #         'PRB_ID': app.idx_to_quest[quest_idx],
+    #         'score': float(scores[i])
+    #     })
+    #
+    # recs[user_id] = recs_list
+    #
+    # logger.info('Recs ===================> {}', recs)
+    #
+    # # Firebase에 저장
+    #
+    # rec_collection = db.collection('users').document(user_id).collection('recommend')
+    #
+    # for question in recs[user_id]:
+    #     prb_id = question['PRB_ID']
+    #
+    #     '''
+    #     문제 ID로 문제 데이터 가져오는 로직
+    #     '''
+    #     prb_level = prb_id[:3]
+    #     prb_source1 = prb_id[3:5]
+    #     prb_source2 = prb_id[5:9]
+    #
+    #     prb_ref = (db.collection('problems')
+    #                .document(prb_level)
+    #                .collection(prb_source1)
+    #                .document(prb_source2)
+    #                .collection('PRB_LIST')
+    #                .document(prb_id))
+    #
+    #     prb_doc = prb_ref.get()
+    #
+    #     if not prb_doc.exists:
+    #         raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
+    #
+    #     # 문제 데이터를 얻습니다.
+    #     prb_data = prb_doc.to_dict()
+    #
+    #     # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
+    #     rec_collection.document(prb_id).set(prb_data)
+    #
+    # # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
+    # rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 10})
 
     return JSONResponse(content=jsonable_encoder(recs))
 

@@ -21,7 +21,24 @@ file_handler.setFormatter(formatter)
 
 logger.addHandler(file_handler)
 
-async def set_labels_for_one(df, user_id, user_items, q=20):
+def set_label(elapsed_time=None, pivot=None, is_correct=None):
+
+    label = 0
+    if elapsed_time == None and pivot == None and is_correct == None:
+        label = 3
+    elif elapsed_time <= pivot and is_correct:
+        label = 1
+    elif elapsed_time > pivot and is_correct:
+        label = 2
+    elif elapsed_time <= pivot and not is_correct:
+        label = 4
+    elif elapsed_time > pivot and not is_correct:
+        label = 5
+
+    return label
+
+
+async def set_labels_for_one(df, user_items, q=20):
 
     '''
     레벨 테스트 결과에 대한 라벨링
@@ -32,42 +49,60 @@ async def set_labels_for_one(df, user_id, user_items, q=20):
     '''
 
     # userLvtag, userIndex 컬럼 받지 않음
-    user_items = user_items[['USER_ID', 'ELAPSED_TIME', 'PRB_ID', 'USER_LEVEL', 'PRB_USER_ANSW', 'TAG', 'PRB_CORRT_ANSW']]
+    # user_items = user_items[['USER_ID', 'ELAPSED_TIME', 'PRB_ID', 'USER_LEVEL', 'PRB_USER_ANSW', 'TAG', 'PRB_CORRT_ANSW']]
 
     questions = df.groupby(df.PRB_ID)
 
     result_list = []
 
-    for idx, his in user_items.iterrows():
+    for index, row in user_items.iterrows():
 
-        if not isinstance(his['USER_ID'], str):
+        user_id = row['USER_ID']
+        prb_id = row['PRB_ID']
+
+        if not isinstance(user_id, str):
             continue
 
-        group = questions.get_group(his['PRB_ID'])
+        # 기존에 등장했던 문제의 경우 -> 기존 데이터에 기반하여 라벨링 진행
+        if prb_id in questions.groups.keys():
 
-        # 백분위 20% 구간의 값 찾기
-        pivot = np.percentile(group['ELAPSED_TIME'], q)
+            group = questions.get_group(prb_id)
 
-        if his['ELAPSED_TIME'] <= pivot and his['PRB_USER_ANSW'] == his['PRB_CORRT_ANSW']:
-            his['label'] = int(1)
-        elif his['ELAPSED_TIME'] > pivot and his['PRB_USER_ANSW'] == his['PRB_CORRT_ANSW']:
-            his['label'] = int(2)
-        elif his['ELAPSED_TIME'] <= pivot and his['PRB_USER_ANSW'] != his['PRB_CORRT_ANSW']:
-            his['label'] = int(4)
-        elif his['ELAPSED_TIME'] > pivot and his['PRB_USER_ANSW'] != his['PRB_CORRT_ANSW']:
-            his['label'] = int(5)
+            # 백분위 20% 구간의 값 찾기
+            pivot = np.percentile(group['ELAPSED_TIME'], q)
 
-        result_list.append(his)
+            label = 0
+            elapsed_time = row['ELAPSED_TIME']
+            prb_user_answ = row['PRB_USER_ANSW']
+            prb_corrt_answ = row['PRB_CORRT_ANSW']
 
+            if elapsed_time <= pivot and prb_user_answ == prb_corrt_answ:
+                label = int(1)
+            elif elapsed_time > pivot and prb_user_answ == prb_corrt_answ:
+                label = int(2)
+            elif elapsed_time <= pivot and prb_user_answ != prb_corrt_answ:
+                label = int(4)
+            elif elapsed_time > pivot and prb_user_answ != prb_corrt_answ:
+                label = int(5)
 
+        # 새롭게 등장한 문제의 경우 -> 라벨링을 수행하기 위해 비교할 수 있는 기존의 데이터 없음
+        # -> 3으로 라벨링
+        else:
+            label = int(3)
+
+        user_items.loc[index, 'label'] = label
+
+        # result_list.append(his)
 
     # 데이터프레임 합치기
     # df = df.append(pd.DataFrame(result_list,
     #                             columns=['USER_ID', 'ELAPSED_TIME', 'PRB_ID', 'USER_LEVEL', 'PRB_USER_ANSW', 'TAG', 'PRB_CORRT_ANSW', 'label'],
     #                             ignore_index=True))
-    df = pd.concat([df, pd.DataFrame(result_list)], ignore_index=True)
+    # return pd.concat([df, pd.DataFrame(result_list)], ignore_index=True)
 
-    return df
+    # 안 합칠 경우
+    # return pd.concat(result_list, ignore_index=True, axis=1)
+    return user_items
 
 async def set_labels(df, q=20):
 
