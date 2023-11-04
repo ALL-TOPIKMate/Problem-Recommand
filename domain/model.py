@@ -183,11 +183,6 @@ def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
     # csr_data = csr_matrix((data.label, (data.USER_ID, data.PRB_ID)), shape=(num_user, num_artist))
     # logger.info(f"csr_data ::: {csr_data}")
 
-    # implicit 라이브러리에서 권장하고 있는 부분
-    os.environ['OPENBLAS_NUM_THREADS'] = '1'
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-    os.environ['MKL_NUM_THREADS'] = '1'
-
     # Implicit AlternatingLeastSquares 모델의 선언
     als_model = AlternatingLeastSquares(factors=100,
                                         regularization=0.01,

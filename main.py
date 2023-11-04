@@ -22,6 +22,11 @@ from dotenv import load_dotenv
 
 load_dotenv() # 환경 변수 로드
 
+# implicit 라이브러리에서 권장하고 있는 부분
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 # 로깅 시간대 설정을 위한 컨버터 함수
 def timetz(*args):
     return datetime.now(KST).timetuple()
