@@ -293,7 +293,7 @@ async def recs_for_all():
     # 레벨1 문제와 레벨2 문제들을 분리합니다.
     for question in questions:
 
-        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == questions].iloc[0]
+        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
 
         if question[:3] == 'LV1':
             lv1_quest_idx.append(quest_idx)
@@ -337,7 +337,7 @@ async def recs_for_all():
         print(f'{user_id} ============= >')
         for i in range(len(ids)):
 
-            prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])] # 문제 ID
+            prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])].iloc[0] # 문제 ID
 
             print(f'PRB_ID: {prb_id}, score: {scores[i]}')
             recs_list.append({
@@ -364,7 +364,7 @@ async def recs_for_all():
         '''
         # 컬렉션 참조
         rec_collection = db.collection('users').document(user_id).collection('recommend')
-            
+
         # 컬렉션 내의 모든 문서 가져옵니다.
         rec_docs = rec_collection.stream()
 
