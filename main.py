@@ -402,8 +402,8 @@ async def recs_for_all():
             # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
             rec_collection.document(prb_id).set(prb_data)
 
-        # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 10
-        rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 10})
+        # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 0
+        rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 0})
 
     return JSONResponse(content=jsonable_encoder(recs))
 
