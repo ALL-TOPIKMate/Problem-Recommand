@@ -499,38 +499,38 @@ async def recs_for_one(user_id):
 
 
     # 추천 문제 recommend 컬렉션에 저장
-    rec_collection = db.collection('users').document(user_id).collection('recommend')
-
-    for question in recs[user_id]:
-        prb_id = question['PRB_ID']
-
-        '''
-        문제 ID로 문제 데이터 가져오는 로직
-        '''
-        prb_level = prb_id[:3]
-        prb_source1 = prb_id[3:5]
-        prb_source2 = prb_id[5:9]
-
-        prb_ref = (db.collection('problems')
-                   .document(prb_level)
-                   .collection(prb_source1)
-                   .document(prb_source2)
-                   .collection('PRB_LIST')
-                   .document(prb_id))
-
-        prb_doc = prb_ref.get()
-
-        if not prb_doc.exists:
-            raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
-
-        # 문제 데이터를 얻습니다.
-        prb_data = prb_doc.to_dict()
-
-        # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
-        rec_collection.document(prb_id).set(prb_data)
-
-    # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 0
-    rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 0})
+    # rec_collection = db.collection('users').document(user_id).collection('recommend')
+    #
+    # for question in recs[user_id]:
+    #     prb_id = question['PRB_ID']
+    #
+    #     '''
+    #     문제 ID로 문제 데이터 가져오는 로직
+    #     '''
+    #     prb_level = prb_id[:3]
+    #     prb_source1 = prb_id[3:5]
+    #     prb_source2 = prb_id[5:9]
+    #
+    #     prb_ref = (db.collection('problems')
+    #                .document(prb_level)
+    #                .collection(prb_source1)
+    #                .document(prb_source2)
+    #                .collection('PRB_LIST')
+    #                .document(prb_id))
+    #
+    #     prb_doc = prb_ref.get()
+    #
+    #     if not prb_doc.exists:
+    #         raise Exception(f'존재하지 않는 도큐먼트. DOC_PATH = {prb_doc.path}')
+    #
+    #     # 문제 데이터를 얻습니다.
+    #     prb_data = prb_doc.to_dict()
+    #
+    #     # 문제 데이터를 추천 문제 컬렉션에 그대로 삽입합니다.
+    #     rec_collection.document(prb_id).set(prb_data)
+    #
+    # # 추천 문제 풀이 상태 초기화. userCorrect: 0, userIndex: 0
+    # rec_collection.document('Recommend').set({'userCorrect': 0, 'userIndex': 0})
 
     return JSONResponse(content=jsonable_encoder(recs))
 

@@ -57,10 +57,11 @@ async def set_labels_for_one(df, user_items, q=20):
 
     for index, row in user_items.iterrows():
 
-        user_id = row['USER_ID']
+        # user_id = row['USER_ID']
         prb_id = row['PRB_ID']
 
-        if not isinstance(user_id, str):
+        # NaN 피하기
+        if not isinstance(prb_id, str):
             continue
 
         # 기존에 등장했던 문제의 경우 -> 기존 데이터에 기반하여 라벨링 진행
