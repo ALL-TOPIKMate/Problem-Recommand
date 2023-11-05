@@ -82,19 +82,26 @@ def hello_every_minute():
     logger.info(f'hello now is {current_time}')
 
 async def daily_recs():
-    now = datetime.now(KST)  # 시간대를 설정하고 현재 시각 불러오기
-    current_time = now.strftime('%Y년 %m월 %d일 %H:%M:%S')
+    st = datetime.now()  # 시간대를 설정하고 현재 시각 불러오기
+    current_time = st.strftime('%Y년 %m월 %d일 %H:%M:%S')
 
-    print(f'Daily Recommendation ========== {current_time}')
-    logger.info(f'Daily Recommendation ========== {current_time}')
+    print(f'Daily Recommendation Starts ========== {current_time}')
+    logger.info(f'Daily Recommendation Starts ========== {current_time}')
 
     await train_model()
     await recs_for_all()
 
+    ed = datetime.now()  # 시간대를 설정하고 현재 시각 불러오기
+    current_time = ed.strftime('%Y년 %m월 %d일 %H:%M:%S')
+
+    print(f'Daily Recommendation Ends ========== {current_time}')
+    logger.info(f'Daily Recommendation Ends ========== {current_time}')
+
+
 # scheduler = BackgroundScheduler(timezone='Asia/Seoul')
 scheduler = AsyncIOScheduler(timezone='Asia/Seoul')
 # scheduler.add_job(hello_every_minute, 'cron', second='0')
-scheduler.add_job(daily_recs, 'cron', hour='0', minute='3', second='0')
+scheduler.add_job(daily_recs, 'cron', hour=0, minute=0)
 
 ##########################################
 ############ 앱 시작/종료 ##################
@@ -146,7 +153,7 @@ async def read_temp_document(user_id):
     user_doc = user_ref.get()
 
     if not user_doc.exists:
-        raise Exception
+        raise Exception(f'존재하지 않는 회원입니다. USER_ID : {user_id}')
 
     # 레벨테스트 컬렉션 읽어오기
     docs_ref = user_ref.collection('leveltest')
@@ -154,18 +161,15 @@ async def read_temp_document(user_id):
 
     # 히스토리 컬렉션에 레벨테스트 기록 추가
     his_col = db.collection('historys')
-    # logger.info(f'히스토리 컬렉션으로 레벨테스트 풀이 기록을 옮깁니다. =========== >')
-    # for doc in docs:
-        # update_time, doc_ref = his_col.add(doc.to_dict())
-        # print(f'[{update_time}] {doc_ref.id} => {(doc_ref.path)}')
-
-    print(f'type(docs) ::: {type(docs)}')
-    # logger.info(f'type(docs) ::: {type(docs)}')
+    logger.info(f'히스토리 컬렉션으로 레벨테스트 풀이 기록을 옮깁니다. =========== >')
+    for doc in docs:
+        update_time, doc_ref = his_col.add(doc.to_dict())
+        logger.info(f'[{update_time}] {doc_ref.id} => {(doc_ref.path)}')
 
     leveltest_dict = list(map(lambda x: x.to_dict(), docs))
 
-    print(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(leveltest_dict)}')
-    # logger.info(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(history_dict)}')
+    # print(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(leveltest_dict)}')
+    logger.info(f'[{user_id}] 레벨테스트 이력 ::: {pd.DataFrame(leveltest_dict)}')
 
     return pd.DataFrame(leveltest_dict)
 
@@ -203,6 +207,11 @@ async def home():
 
 @app.post('/model')
 async def train_model():
+
+    logger.info('train_model() start!!!')
+
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
 
     from domain.model import set_labels, learn_model
 
@@ -259,19 +268,23 @@ async def train_model():
     app.data_sparse = csr_matrix((app.labels, (rows, cols)), shape=(len(app.users), len(app.questions)))
 
     # app.csr_data_transpose, app.user_to_idx, app.quest_to_idx = learn_model(app.df)
-    app.data_sparse_trans = learn_model(app.data_sparse)
+    app.data_sparse_trans, result = learn_model(app.data_sparse)
 
     # 사용자 ID 찾기(int -> string)
-    print(f'app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0] ::: {app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0]}')
+    # print(f'app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0] ::: {app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(0)].iloc[0]}')
     # 사용자 IDX 찾기(string -> int)
-    print(f'app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0] ::: {app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0]}')
+    # print(f'app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0] ::: {app.user_lookup.USER_IDX.loc[app.user_lookup.USER_ID == "1aNUrkdm96dQsampFyc9rARsGsR2"].iloc[0]}')
 
     # app.idx_to_user = {v: k for k, v in app.user_to_idx.items()}
     # app.idx_to_quest = {v: k for k, v in app.quest_to_idx.items()}
 
     # als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
 
-    return {'message': '모델 학습 완료!'}
+    logger.info(f'lean_model() result ::: {result}')
+
+    logger.info('train_model() end...')
+
+    return JSONResponse(content=jsonable_encoder(result))
 
 # 전체 유저에게 추천
 @app.get('/recs-list')
@@ -287,6 +300,7 @@ async def recs_for_all():
 
     # 저장된 모델을 로드합니다.
     als_model = AlternatingLeastSquares(RecommenderBase).load('./train/als-model.npz')
+    logger.info('model load completed !!!')
 
     # idx_to_user 딕셔너리 -->> np array로 형변환
     # user_idxs = np.fromiter(app.idx_to_user.keys(), dtype=int)
@@ -323,12 +337,18 @@ async def recs_for_all():
         user_level = user_doc.get('my_level') # 사용자 선택 레벨
 
         # 유저 레벨의 문제(아이템) 설정
-        items = lv1_quest_idx if user_level == '1' else lv2_quest_idx
+        items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
 
         print(f'items ::: {items}')
         print(f'als_model.item_factors ::: {als_model.item_factors}')
         print(f'len(als_model.item_factors) ::: {len(als_model.item_factors)}')
 
+        # 풀었던 문제 제외 : filter_already_liked_items = True
+        # 아이템 서브 셋: items = items
+        '''
+        itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
+        => 추가 항목 ID의 배열입니다. 설정하면 모델에 적합한 모든 항목의 순위를 매기지 않고 이 배열의 항목의 순위만 매깁니다. 이 매개 변수는 filter_items와 함께 사용할 수 없습니다
+        '''
         # ids, scores = als_model.recommend(user_idx,
         #                                   app.csr_data_transpose[user_idx],
         #                                   filter_already_liked_items=True,
@@ -471,6 +491,32 @@ async def recs_for_one(user_id):
     # 전치해야 하나??
     # data_sparse_trans = data_sparse.T.tocsr()
 
+    lv1_quest_idx = []
+    lv2_quest_idx = []
+
+    # 레벨1 문제와 레벨2 문제들을 분리합니다.
+    for question in questions:
+
+        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
+
+        if question[:3] == 'LV1':
+            lv1_quest_idx.append(quest_idx)
+        else:
+            lv2_quest_idx.append(quest_idx)
+
+    # 유저 탈퇴 여부 확인
+    user_ref = db.collection('users').document(user_id)
+    user_doc = user_ref.get()
+
+    if not user_doc.exists:
+        raise Exception(f'존재하지 않는 회원입니다. USER_ID : {user_id}')
+
+    # 유저 레벨 확인
+    user_level = user_doc.get('my_level')  # 사용자 선택 레벨
+
+    # 유저 레벨의 문제(아이템) 설정
+    items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
+
     # ids, scores = als_model.recommend(userid=0,
     #                                   user_items=app.data_sparse_trans[0],
     #                                   N=10,
@@ -478,6 +524,13 @@ async def recs_for_one(user_id):
     #                                   filter_already_liked_items=True)
 
     # 개별 추천
+    # 해당 유저의 데이터만 사용.
+    # 풀었던 문제 제외 : filter_already_liked_items = True
+    # 아이템 서브 셋: items = items
+    '''
+    itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
+    => 추가 항목 ID의 배열입니다. 설정하면 모델에 적합한 모든 항목의 순위를 매기지 않고 이 배열의 항목의 순위만 매깁니다. 이 매개 변수는 filter_items와 함께 사용할 수 없습니다
+    '''
     ids, scores = als_model.recommend(userid=0,
                                       user_items=data_sparse[0],
                                       N=10,

@@ -192,7 +192,7 @@ def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
 
     # als 모델은 input으로 (item X user 꼴의 matrix를 받기 때문에 Transpose해줍니다.)
     csr_data_transpose = data_sparse.T.tocsr()
-    logger.info(f'csr_data_transpose ::: {csr_data_transpose}')
+    # logger.info(f'csr_data_transpose ::: {csr_data_transpose}')
 
     # 모델 훈련
     als_model.fit(csr_data_transpose)
@@ -202,11 +202,22 @@ def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
     if not os.path.exists(f'{current_path}/train'):
         os.mkdir(f'{current_path}/train')
     als_model.save('./train/als-model.npz')
+    logger.info(f'model saved !!!')
 
-    print(f'als_model.alpha ======== > {als_model.alpha}')
-    print(f'als_model.iterations ======= > {als_model.iterations}')
-    print(f'als_model.regularization ======= > {als_model.regularization}')
-    print(f'als_model.factors ====== > {als_model.factors}')
+    # logger.info(f'als_model.alpha ======== > {als_model.alpha}')
+    # logger.info(f'als_model.iterations ======= > {als_model.iterations}')
+    # logger.info(f'als_model.regularization ======= > {als_model.regularization}')
+    # logger.info(f'als_model.factors ====== > {als_model.factors}')
+
+    # 모델 학습 결과 - 사용자, 아이템 잠재 요소 학습 결과
+    result = {
+        'als_model.alpha': als_model.alpha,
+        'als_model.iterations': als_model.iterations,
+        'als_model.regularization': als_model.regularization,
+        'als_model.factors': als_model.factors,
+        'als_model.user_factors': als_model.user_factors.tolist(),
+        'als_model.item_factors': als_model.item_factors.tolist()
+    }
 
     # # 비슷한 문제 찾기
     # favorite_artist = 'LV1PQ0041015'
@@ -240,7 +251,7 @@ def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
     # return temp
 
     # return csr_data_transpose, user_to_idx, quest_to_idx
-    return csr_data_transpose
+    return csr_data_transpose, result
 
 def learn_model2(df, factor, regularization, iterations):
 
