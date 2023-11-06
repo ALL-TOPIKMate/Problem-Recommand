@@ -128,15 +128,15 @@ async def read_document():
     docs_ref = db.collection(u'historys')
     docs = list(docs_ref.stream())
 
-    for doc in docs:
-        print(f'{doc.id} => {doc.to_dict()}')
+    # for doc in docs:
+    #     print(f'{doc.id} => {doc.to_dict()}')
 
-    print(f'type(docs) ::: {type(docs)}')
+    # print(f'type(docs) ::: {type(docs)}')
     # logger.info(f'type(docs) ::: {type(docs)}')
 
     history_dict = list(map(lambda x: x.to_dict(), docs))
 
-    print(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(history_dict)}')
+    logger.info(f'히스토리 컬렉션 ::: {pd.DataFrame(history_dict)}')
     # logger.info(f'pd.DataFrame(history_dict) ::: {pd.DataFrame(history_dict)}')
 
     return pd.DataFrame(history_dict)
@@ -305,19 +305,19 @@ async def recs_for_all():
     # idx_to_user 딕셔너리 -->> np array로 형변환
     # user_idxs = np.fromiter(app.idx_to_user.keys(), dtype=int)
     # questions = app.quest_to_idx.keys()
-    questions = app.quest_lookup.PRB_ID
-    lv1_quest_idx = []
-    lv2_quest_idx = []
-
-    # 레벨1 문제와 레벨2 문제들을 분리합니다.
-    for question in questions:
-
-        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
-
-        if question[:3] == 'LV1':
-            lv1_quest_idx.append(quest_idx)
-        else:
-            lv2_quest_idx.append(quest_idx)
+    # questions = app.quest_lookup.PRB_ID
+    # lv1_quest_idx = []
+    # lv2_quest_idx = []
+    #
+    # # 레벨1 문제와 레벨2 문제들을 분리합니다.
+    # for question in questions:
+    #
+    #     quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
+    #
+    #     if question[:3] == 'LV1':
+    #         lv1_quest_idx.append(quest_idx)
+    #     else:
+    #         lv2_quest_idx.append(quest_idx)
 
     recs = {}
 
@@ -491,18 +491,18 @@ async def recs_for_one(user_id):
     # 전치해야 하나??
     # data_sparse_trans = data_sparse.T.tocsr()
 
-    lv1_quest_idx = []
-    lv2_quest_idx = []
-
-    # 레벨1 문제와 레벨2 문제들을 분리합니다.
-    for question in questions:
-
-        quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
-
-        if question[:3] == 'LV1':
-            lv1_quest_idx.append(quest_idx)
-        else:
-            lv2_quest_idx.append(quest_idx)
+    # lv1_quest_idx = []
+    # lv2_quest_idx = []
+    #
+    # # 레벨1 문제와 레벨2 문제들을 분리합니다.
+    # for question in questions:
+    #
+    #     quest_idx = app.quest_lookup.PRB_IDX.loc[app.quest_lookup.PRB_ID == question].iloc[0]
+    #
+    #     if question[:3] == 'LV1':
+    #         lv1_quest_idx.append(quest_idx)
+    #     else:
+    #         lv2_quest_idx.append(quest_idx)
 
     # 유저 탈퇴 여부 확인
     user_ref = db.collection('users').document(user_id)
@@ -515,7 +515,7 @@ async def recs_for_one(user_id):
     user_level = user_doc.get('my_level')  # 사용자 선택 레벨
 
     # 유저 레벨의 문제(아이템) 설정
-    items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
+    # items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
 
     # ids, scores = als_model.recommend(userid=0,
     #                                   user_items=app.data_sparse_trans[0],
@@ -524,8 +524,9 @@ async def recs_for_one(user_id):
     #                                   filter_already_liked_items=True)
 
     # 개별 추천
+    .0
     # 해당 유저의 데이터만 사용.
-    # 풀었던 문제 제외 : filter_already_liked_items = True
+0    # 풀었던 문제 제외 : filter_already_liked_items = True
     # 아이템 서브 셋: items = items
     '''
     itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
