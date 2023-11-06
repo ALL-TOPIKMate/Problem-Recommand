@@ -524,9 +524,8 @@ async def recs_for_one(user_id):
     #                                   filter_already_liked_items=True)
 
     # 개별 추천
-    .0
     # 해당 유저의 데이터만 사용.
-0    # 풀었던 문제 제외 : filter_already_liked_items = True
+    # 풀었던 문제 제외 : filter_already_liked_items = True
     # 아이템 서브 셋: items = items
     '''
     itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
