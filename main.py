@@ -337,11 +337,7 @@ async def recs_for_all():
         user_level = user_doc.get('my_level') # 사용자 선택 레벨
 
         # 유저 레벨의 문제(아이템) 설정
-        items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
-
-        print(f'items ::: {items}')
-        print(f'als_model.item_factors ::: {als_model.item_factors}')
-        print(f'len(als_model.item_factors) ::: {len(als_model.item_factors)}')
+        # items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
 
         # 풀었던 문제 제외 : filter_already_liked_items = True
         # 아이템 서브 셋: items = items
