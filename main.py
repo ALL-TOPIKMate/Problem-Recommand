@@ -322,53 +322,80 @@ async def recs_for_all():
     recs = {}
 
     # 유저 한 명씩 전체 추천
-    for user_idx in app.users:
-        # user_id = app.idx_to_user[user_idx]
-        user_id = app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(user_idx)].iloc[0] # 사용자 ID
+    # for user_idx in app.users:
+    #     # user_id = app.idx_to_user[user_idx]
+    #     user_id = app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(user_idx)].iloc[0] # 사용자 ID
+    #
+    #     # 유저 탈퇴 여부 확인
+    #     user_ref = db.collection('users').document(user_id)
+    #     user_doc = user_ref.get()
+    #
+    #     if not user_doc.exists:
+    #         continue
+    #
+    #     # 유저 레벨 확인
+    #     user_level = user_doc.get('my_level') # 사용자 선택 레벨
+    #
+    #     # 유저 레벨의 문제(아이템) 설정
+    #     # items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
+    #
+    #     # 풀었던 문제 제외 : filter_already_liked_items = True
+    #     # 아이템 서브 셋: items = items
+    #     '''
+    #     itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
+    #     => 추가 항목 ID의 배열입니다. 설정하면 모델에 적합한 모든 항목의 순위를 매기지 않고 이 배열의 항목의 순위만 매깁니다. 이 매개 변수는 filter_items와 함께 사용할 수 없습니다
+    #     '''
+    #     # ids, scores = als_model.recommend(user_idx,
+    #     #                                   app.csr_data_transpose[user_idx],
+    #     #                                   filter_already_liked_items=True,
+    #     #                                   items=items)
+    #     ids, scores = als_model.recommend(user_idx,
+    #                                       app.data_sparse_trans[user_idx],
+    #                                       filter_already_liked_items=True)
 
-        # 유저 탈퇴 여부 확인
-        user_ref = db.collection('users').document(user_id)
-        user_doc = user_ref.get()
+    ids, scores = als_model.recommend(app.users,
+                                      app.data_sparse_trans[app.users],
+                                      filter_already_liked_items=True)
 
-        if not user_doc.exists:
-            continue
+    print(f'ids ::: {ids}')
+    print(f'scores ::: {scores}')
 
-        # 유저 레벨 확인
-        user_level = user_doc.get('my_level') # 사용자 선택 레벨
-
-        # 유저 레벨의 문제(아이템) 설정
-        # items = lv1_quest_idx if user_level == 1 else lv2_quest_idx
-
-        # 풀었던 문제 제외 : filter_already_liked_items = True
-        # 아이템 서브 셋: items = items
-        '''
-        itmes: Array of extra item ids. When set this will only rank the items in this array instead of ranking every item the model was fit for. This parameter cannot be used with filter_items
-        => 추가 항목 ID의 배열입니다. 설정하면 모델에 적합한 모든 항목의 순위를 매기지 않고 이 배열의 항목의 순위만 매깁니다. 이 매개 변수는 filter_items와 함께 사용할 수 없습니다
-        '''
-        # ids, scores = als_model.recommend(user_idx,
-        #                                   app.csr_data_transpose[user_idx],
-        #                                   filter_already_liked_items=True,
-        #                                   items=items)
-        ids, scores = als_model.recommend(user_idx,
-                                          app.data_sparse_trans[user_idx],
-                                          filter_already_liked_items=True)
-
+    for i in range(len(ids)):
 
         recs_list = list()
+
+        user_id = app.user_lookup.USER_ID.loc[app.user_lookup.USER_IDX == str(i)].iloc[0]
+
         print(f'{user_id} ============= >')
-        for i in range(len(ids)):
+        for j in range(len(ids[i])):
 
-            prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])].iloc[0] # 문제 ID
+            prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i][j])].iloc[0] # 문제 ID
 
-            print(f'PRB_ID: {prb_id}, score: {scores[i]}')
+            print(f'PRB_ID: {prb_id}, score: {scores[i][j]}')
             recs_list.append({
                 # 'PRB_ID': app.idx_to_quest[ids[i]],
                 'PRB_ID': prb_id,
-                'SCORE': float(scores[i])
+                'SCORE': float(scores[i][j])
             })
         print()
 
         recs[user_id] = recs_list
+
+        # recs_list = list()
+        # print(f'{user_id} ============= >')
+        # for i in range(len(ids)):
+        #
+        #     prb_id = app.quest_lookup.PRB_ID.loc[app.quest_lookup.PRB_IDX == str(ids[i])].iloc[0] # 문제 ID
+        #
+        #     print(f'PRB_ID: {prb_id}, score: {scores[i]}')
+        #     recs_list.append({
+        #         # 'PRB_ID': app.idx_to_quest[ids[i]],
+        #         'PRB_ID': prb_id,
+        #         'SCORE': float(scores[i])
+        #     })
+        # print()
+        #
+        # recs[user_id] = recs_list
 
     logger.info('Recs ===================> {}', recs)
 
@@ -379,6 +406,13 @@ async def recs_for_all():
     '''
 
     for user_id in recs.keys():
+
+        # 유저 탈퇴 여부 확인
+        user_ref = db.collection('users').document(user_id)
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            continue
 
         '''
         기존 추천 문제 삭제
