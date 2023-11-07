@@ -132,7 +132,7 @@ async def set_labels(df, q=20):
 
     return pd.concat(result_list, ignore_index=True)
 
-def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
+def learn_model(data_sparse, factor=150, regularization=0.01, iterations=15):
 
     # data = pd.DataFrame(data, columns=col_names)
     # logger.info(data)
@@ -184,10 +184,10 @@ def learn_model(data_sparse, factor=150, regularization=0.03, iterations=15):
     # logger.info(f"csr_data ::: {csr_data}")
 
     # Implicit AlternatingLeastSquares 모델의 선언
-    als_model = AlternatingLeastSquares(factors=100,
-                                        regularization=0.01,
+    als_model = AlternatingLeastSquares(factors=factor,
+                                        regularization=regularization,
                                         use_gpu=False,
-                                        iterations=15,
+                                        iterations=iterations,
                                         dtype=np.float32)
 
     # als 모델은 input으로 (item X user 꼴의 matrix를 받기 때문에 Transpose해줍니다.)
